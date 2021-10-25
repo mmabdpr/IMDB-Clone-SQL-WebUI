@@ -1,0 +1,342 @@
+﻿@page "/Films"
+
+@using System.Linq;
+
+@inject IJSRuntime jsRuntime
+@inject Repositories.FilmRepository FilmRepository
+@inject Repositories.ArtistRepository ArtistRepository
+@inject DialogService dialogService
+@inject NotificationService notificationService
+
+<div class="container-fluid m-0 p-0">
+    <div class="row">
+        <div class="col">
+            <h1 class="d-inline">Films</h1>
+        </div>
+        <div class="col">
+            <RadzenButton Style="float:right" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="((args) => OpenAddFilmDialog())"></RadzenButton>
+        </div>
+    </div>
+</div>
+
+@if (Films == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <RadzenGrid Style="margin-top:20px" AllowFiltering="true" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowPaging="true" PageSize="6"
+                AllowSorting="true" Data="@Films" TItem="Models.Film" ColumnWidth="200px" RowDoubleClick="(async (args) => { this._foundFilmId = args.FilmId; await FindById(); })">
+        <Columns>
+            <RadzenGridColumn Width="5%" TItem="Models.Film" Property="FilmId" Title="ID" />
+            <RadzenGridColumn Width="40%" TItem="Models.Film" Property="FilmName" Title="Name" />
+            <RadzenGridColumn Width="5%" TItem="Models.Film" Property="ProductionYear" Title="Year" />
+            <RadzenGridColumn Width="15%" TItem="Models.Film" Property="Genre" Title="Genre" />
+            <RadzenGridColumn Width="30%" TItem="Models.Film" Property="DirectorName" Title="Director" />
+            <RadzenGridColumn Width="5%" TItem="Models.Film" Property="FilmId" Sortable="false" Filterable="false">
+                <Template Context="data">
+                    <RadzenButton Icon="remove" Click="@((args) => RemoveFilm(data.FilmId))"></RadzenButton>
+                </Template>
+            </RadzenGridColumn>
+        </Columns>
+    </RadzenGrid>
+
+    <div class="container p-0 m-0">
+        <div class="row justify-content-start mt-4 mb-2">
+            <div class="col-2">
+                <RadzenLabel Text="Find Film By Id" />
+            </div>
+            <div class="col-3">
+                <RadzenNumeric Style="width:100%" @bind-Value="@_foundFilmId" Min="1111" Max="9999" />
+            </div>
+            <div class="col-2">
+                <RadzenButton Icon="search" ButtonStyle="ButtonStyle.Light" Click="((args) => FindById())"></RadzenButton>
+            </div>
+        </div>
+        <div class="row justify-content-start align-content-center">
+            <div class="col-2">
+                <RadzenLabel Text="Find Film By Name" />
+            </div>
+            <div class="col-3">
+                <RadzenTextBox Style="width:100%" Placeholder="Film Name.." @bind-Value="_foundFilmName"></RadzenTextBox>
+            </div>
+            <div class="col-2">
+                <RadzenButton Icon="search" ButtonStyle="ButtonStyle.Light" Click="((args) => FindByName())"></RadzenButton>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    #region Fields
+
+    protected IEnumerable<Models.Film> Films => this.FilmRepository.GetAll().Select(x => x.Film).ToList();
+
+    private int _newFilmId { get; set; } = 1111;
+    private string _newFilmName { get; set; } = "";
+    private int _newFilmProductionYear { get; set; } = 1990;
+    private string _newFilmDirectorName { get; set; } = "";
+    private string _newFilmGenre { get; set; } = "";
+
+    private int _foundFilmId { get; set; } = 1111;
+    private Models.Film _updateFilmModel { get; set; } = null;
+
+    private string _foundFilmName { get; set; }
+    private List<Models.Film> _foundFilmsByName { get; set; } = new List<Models.Film>();
+
+    #endregion
+
+    protected override void OnInitialized()
+    {
+    }
+
+    private void AddFilm()
+    {
+        try
+        {
+            var newFilm = new Models.Film(_newFilmId, _newFilmName,
+                _newFilmDirectorName, _newFilmProductionYear, _newFilmGenre);
+            this.FilmRepository.Add(newFilm);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+            this.notificationService.Notify(
+                new NotificationMessage()
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Adding Failed",
+                    Detail = e.Message,
+                    Duration = 4000
+                });
+        }
+    }
+
+    private void RemoveFilm(int filmId)
+    {
+        try
+        {
+            this.FilmRepository.RemoveById(filmId);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.ToString());
+            this.notificationService.Notify(
+                new NotificationMessage()
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Removing Failed",
+                    Detail = e.Message,
+                    Duration = 4000
+                });
+        }
+    }
+
+    private async Task FindById()
+    {
+        try
+        {
+            _updateFilmModel = FilmRepository.FindById(_foundFilmId);
+        }
+        catch (Exception e)
+        {
+            this.notificationService.Notify(
+                new NotificationMessage()
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Finding Failed",
+                    Detail = e.Message,
+                    Duration = 4000
+                });
+        }
+
+        if (_updateFilmModel == null)
+        {
+            this.notificationService.Notify(
+                new NotificationMessage()
+                {
+                    Severity = NotificationSeverity.Error,
+                    Summary = "Finding Failed",
+                    Detail = "Couldn't find film with this ID",
+                    Duration = 4000
+                });
+
+            return;
+        }
+
+        await OpenUpdateDialog();
+    }
+
+    private async Task OpenUpdateDialog()
+    {
+        await dialogService.OpenAsync("Film", ds =>
+    @<RadzenTabs>
+         <Tabs>
+             <RadzenTabsItem Text="Film">
+                 <RadzenCard Style="padding: 20px;">
+                     <div class="container-fluid">
+
+                         <div class="row mb-4 justify-content-start">
+                             <div class="col">
+                                 <label class="">Id:</label>
+                                 <RadzenNumeric Min="1111" Max="9999" @bind-Value="_updateFilmModel.FilmId"></RadzenNumeric>
+                             </div>
+                             <div class="col mx-2">
+                                 <label class="">Name:</label>
+                                 <RadzenTextBox Placeholder="Name" @bind-Value="_updateFilmModel.FilmName"></RadzenTextBox>
+                             </div>
+                             <div class="col">
+                                 <label class="">Year:</label>
+                                 <RadzenNumeric Min="1800" Max="9999" @bind-Value="_updateFilmModel.ProductionYear"></RadzenNumeric>
+                             </div>
+                         </div>
+                         <div class="row mb-4 justify-content-start">
+                             <div class="col">
+                                 <label class="">Director:</label>
+                                 <RadzenTextBox Placeholder="Director" @bind-Value="_updateFilmModel.DirectorName"></RadzenTextBox>
+                             </div>
+                             <div class="col">
+                                 <label class="">Genre:</label>
+                                 <RadzenTextBox Placeholder="Genre" @bind-Value="_updateFilmModel.Genre"></RadzenTextBox>
+                             </div>
+                         </div>
+                         <div class="row">
+                             <div class="col-md-12">
+                                 <RadzenButton Text="Discard" Click="() => ds.Close(false)" Style="margin-bottom: 10px; width: 150px" />
+                                 <RadzenButton Text="Update" Click="(() => { UpdateFilm(); ds.Close(true); })"
+                                               ButtonStyle="ButtonStyle.Secondary"
+                                               Style="margin-bottom: 10px; width: 150px" />
+                             </div>
+                         </div>
+                     </div>
+
+                 </RadzenCard>
+             </RadzenTabsItem>
+             <RadzenTabsItem Text="Actors List">
+                 <RadzenCard>
+                     <RadzenGrid FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowPaging="true" PageSize="6"
+                                 Data="@GetArtists(_updateFilmModel)" TItem="Models.Artist">
+                         <Columns>
+                             <RadzenGridColumn TItem="Models.Artist" Property="ArtistName" Title="Artist Name" />
+                         </Columns>
+                     </RadzenGrid>
+                 </RadzenCard>
+             </RadzenTabsItem>
+         </Tabs>
+    </RadzenTabs>
+    );
+    }
+
+    private IEnumerable<Models.Artist> GetArtists(Models.Film film)
+    {
+        return this.ArtistRepository.GetArtistsByFilm(film.FilmName).ToList();
+    }
+
+    private void UpdateFilm()
+    {
+        try
+        {
+            FilmRepository.Update(_foundFilmId, _updateFilmModel);
+        }
+        catch (Exception e)
+        {
+            this.notificationService.Notify(
+            new NotificationMessage()
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Updating Failed",
+                Detail = e.Message,
+                Duration = 4000
+            });
+        }
+    }
+
+    private async Task OpenAddFilmDialog() => await dialogService.OpenAsync("Add Film", ds =>
+    @<RadzenCard Style="padding: 20px;">
+        <div class="container-fluid">
+
+            <div class="row mb-4 justify-content-start">
+                <div class="col">
+                    <label class="">Id:</label>
+                    <RadzenNumeric Min="1111" Max="9999" @bind-Value="_newFilmId"></RadzenNumeric>
+                </div>
+                <div class="col mx-2">
+                    <label class="">Name:</label>
+                    <RadzenTextBox Placeholder="Name" @bind-Value="_newFilmName"></RadzenTextBox>
+                </div>
+                <div class="col">
+                    <label class="">Year:</label>
+                    <RadzenNumeric Min="1800" Max="9999" @bind-Value="_newFilmProductionYear"></RadzenNumeric>
+                </div>
+            </div>
+            <div class="row mb-4 justify-content-start">
+                <div class="col">
+                    <label class="">Director:</label>
+                    <RadzenTextBox Placeholder="Director" @bind-Value="_newFilmDirectorName"></RadzenTextBox>
+                </div>
+                <div class="col ml-2">
+                    <label class="">Genre:</label>
+                    <RadzenTextBox Placeholder="Genre" @bind-Value="_newFilmGenre"></RadzenTextBox>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <RadzenButton Text="Discard" Click="() => ds.Close(false)" Style="margin-bottom: 10px; width: 150px" />
+                    <RadzenButton Text="Add" Click="(() => { AddFilm(); ds.Close(true); })"
+                                  ButtonStyle="ButtonStyle.Secondary"
+                                  Style="margin-bottom: 10px; width: 150px" />
+                </div>
+            </div>
+        </div>
+
+    </RadzenCard>
+    );
+
+    private async Task FindByName()
+    {
+        try
+        {
+            _foundFilmsByName = FilmRepository.FindByName(_foundFilmName).ToList();
+        }
+        catch (Exception e)
+        {
+            this.notificationService.Notify(
+            new NotificationMessage()
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Finding Failed",
+                Detail = e.Message,
+                Duration = 4000
+            });
+        }
+
+        if (_foundFilmsByName.Count == 0)
+        {
+            this.notificationService.Notify(
+            new NotificationMessage()
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Finding Failed",
+                Detail = "Couldn't find any film with this name",
+                Duration = 4000
+            });
+
+            return;
+        }
+
+        await OpenFoundFilmsByNameDialog();
+    }
+
+    private async Task OpenFoundFilmsByNameDialog() => await dialogService.OpenAsync("Found Films", ds =>
+    @<RadzenGrid AllowFiltering="true" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" AllowPaging="true" PageSize="4"
+                 AllowSorting="true" Data="@_foundFilmsByName" TItem="Models.Film" ColumnWidth="200px" RowDoubleClick="(async (args) => { this._foundFilmId = args.FilmId; await FindById(); })">
+        <Columns>
+            <RadzenGridColumn TItem="Models.Film" Property="FilmId" Title="Film ID" />
+            <RadzenGridColumn TItem="Models.Film" Property="FilmName" Title="Name" />
+            <RadzenGridColumn TItem="Models.Film" Property="ProductionYear" Title="Year" />
+            <RadzenGridColumn TItem="Models.Film" Property="Genre" Title="Genre" />
+            <RadzenGridColumn TItem="Models.Film" Property="DirectorName" Title="Director" />
+        </Columns>
+    </RadzenGrid>
+    , new DialogOptions() { Width = "70%" });
+}
