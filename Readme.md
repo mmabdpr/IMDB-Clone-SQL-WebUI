@@ -4,6 +4,12 @@
 
 This project mimics the main functionalities of IMDB website. The goal of this project is to learn and practice SQL and database design.
 
+## What I've done
+
+- Created a raw-file-only data persistence solution with a Web UI for a movie-actor database using Blazor framework.
+- Designed a relational database using ER modeling.
+- Implemented ER models using SQL using advanced features including triggers and functions.
+
 ## Usage (Web UI)
 
 1. install dotnet core 3.1 runtime (or sdk)
